@@ -1,0 +1,358 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global safety net: default deny everything
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Reusable Hardened Helpers ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isWorkspaceOwner(workspaceId) {
+      return isSignedIn() && request.auth.uid == workspaceId;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidTimestamp(ts) {
+      return ts is timestamp && ts <= request.time;
+    }
+
+    // --- Validation Blueprints ---
+    function isValidWorkspace(data) {
+      return data.ownerId is string && data.ownerId == request.auth.uid &&
+             data.companyName is string && data.companyName.size() >= 1 && data.companyName.size() <= 100 &&
+             data.industry is string && data.industry.size() >= 1 && data.industry.size() <= 60 &&
+             data.currency is string && data.currency in ['USD', 'EUR', 'GBP', 'MAD', 'AED', 'CAD', 'XOF', 'GHS', 'NGN'] &&
+             data.planTier is string && data.planTier in ['starter', 'growth', 'enterprise'] &&
+             data.whatsappStatus is string && data.whatsappStatus in ['not_connected', 'pending_phase2'] &&
+             data.welcomeEnabled is bool &&
+             data.welcomeMessage is string && data.welcomeMessage.size() <= 1000 &&
+             data.aiEnabled is bool &&
+             data.aiTone is string && data.aiTone in ['friendly', 'professional', 'concise'] &&
+             data.aiLanguage is string && data.aiLanguage.size() >= 2 && data.aiLanguage.size() <= 40 &&
+             data.aiInstructions is string && data.aiInstructions.size() <= 1500 &&
+             (!('email' in data) || (data.email is string && data.email.size() <= 120)) &&
+             (!('phone' in data) || (data.phone is string && data.phone.size() <= 40)) &&
+             (!('address' in data) || (data.address is string && data.address.size() <= 200)) &&
+             (!('businessHours' in data) || (data.businessHours is string && data.businessHours.size() <= 120)) &&
+             (!('acceptedPaymentMethods' in data) || (data.acceptedPaymentMethods is list && data.acceptedPaymentMethods.size() <= 10)) &&
+             (!('mobileMoneyNumber' in data) || (data.mobileMoneyNumber is string && data.mobileMoneyNumber.size() <= 40)) &&
+             (!('seededDemoData' in data) || data.seededDemoData is bool);
+    }
+
+    function isValidCustomer(data) {
+      return data.ownerId is string && data.ownerId == request.auth.uid &&
+             data.name is string && data.name.size() >= 1 && data.name.size() <= 100 &&
+             data.phone is string && data.phone.size() >= 1 && data.phone.size() <= 40 &&
+             data.segment is string && data.segment in ['lead', 'regular', 'vip', 'wholesale'] &&
+             data.tags is list && data.tags.size() <= 10 && (data.tags.size() == 0 || data.tags[0] is string) &&
+             data.totalOrders is int && data.totalOrders >= 0 &&
+             data.totalSpent is number && data.totalSpent >= 0 &&
+             (!('email' in data) || (data.email is string && data.email.size() <= 120)) &&
+             (!('company' in data) || (data.company is string && data.company.size() <= 100)) &&
+             (!('notes' in data) || (data.notes is string && data.notes.size() <= 1000));
+    }
+
+    function isValidProduct(data) {
+      return data.ownerId is string && data.ownerId == request.auth.uid &&
+             data.name is string && data.name.size() >= 1 && data.name.size() <= 120 &&
+             data.description is string && data.description.size() <= 1000 &&
+             data.category is string && data.category.size() >= 1 && data.category.size() <= 60 &&
+             data.price is number && data.price >= 0 &&
+             data.stock is int && data.stock >= 0 &&
+             data.active is bool &&
+             data.imageKey is string && data.imageKey.size() <= 60 &&
+             (!('sku' in data) || (data.sku is string && data.sku.size() <= 50)) &&
+             (!('imageUri' in data) || (data.imageUri is string && data.imageUri.size() <= 600)) &&
+             (!('localImagePath' in data) || (data.localImagePath is string && data.localImagePath.size() <= 600));
+    }
+
+    function isValidOrder(data) {
+      return data.ownerId is string && data.ownerId == request.auth.uid &&
+             data.orderNumber is string && data.orderNumber.size() >= 1 && data.orderNumber.size() <= 40 &&
+             data.customerId is string && data.customerId.size() <= 128 &&
+             data.customerName is string && data.customerName.size() >= 1 && data.customerName.size() <= 100 &&
+             data.customerPhone is string && data.customerPhone.size() <= 40 &&
+             data.items is list && data.items.size() >= 1 && data.items.size() <= 20 && data.items[0] is map &&
+             data.totalAmount is number && data.totalAmount >= 0 &&
+             data.status is string && data.status in ['pending', 'confirmed', 'preparing', 'shipped', 'delivered', 'cancelled'] &&
+             (!('paymentMethod' in data) || data.paymentMethod in ['wave', 'orange_money', 'mtn_momo', 'moov_money', 'mixx_by_yas', 'cash_on_delivery']) &&
+             (!('paymentStatus' in data) || data.paymentStatus in ['pending', 'paid', 'failed']) &&
+             (!('paymentReference' in data) || (data.paymentReference is string && data.paymentReference.size() <= 80)) &&
+             (!('notes' in data) || (data.notes is string && data.notes.size() <= 500)) &&
+             (!('channel' in data) || (data.channel is string && data.channel.size() <= 40));
+    }
+
+    function isValidConversation(data) {
+      return data.ownerId is string && data.ownerId == request.auth.uid &&
+             data.customerId is string && data.customerId.size() <= 128 &&
+             data.customerName is string && data.customerName.size() >= 1 && data.customerName.size() <= 100 &&
+             data.customerPhone is string && data.customerPhone.size() <= 40 &&
+             data.status is string && data.status in ['open', 'automated', 'resolved'] &&
+             data.unreadCount is int && data.unreadCount >= 0 &&
+             data.lastMessage is string && data.lastMessage.size() <= 2000 &&
+             data.lastMessageSender is string && data.lastMessageSender in ['customer', 'agent', 'automation', 'ai'] &&
+             (!('aiSuggestedReply' in data) || (data.aiSuggestedReply is string && data.aiSuggestedReply.size() <= 2000)) &&
+             (!('assignedRule' in data) || (data.assignedRule is string && data.assignedRule.size() <= 100));
+    }
+
+    function isValidMessage(data) {
+      return data.ownerId is string && data.ownerId == request.auth.uid &&
+             data.senderType is string && data.senderType in ['customer', 'agent', 'automation', 'ai'] &&
+             data.text is string && data.text.size() >= 1 && data.text.size() <= 4000 &&
+             (!('ruleMatched' in data) || (data.ruleMatched is string && data.ruleMatched.size() <= 100));
+    }
+
+    function isValidAutomationRule(data) {
+      return data.ownerId is string && data.ownerId == request.auth.uid &&
+             data.name is string && data.name.size() >= 1 && data.name.size() <= 100 &&
+             data.triggerType is string && data.triggerType in ['keyword', 'faq'] &&
+             data.keywords is list && data.keywords.size() >= 1 && data.keywords.size() <= 10 && data.keywords[0] is string &&
+             data.matchMode is string && data.matchMode in ['contains', 'exact'] &&
+             data.responseText is string && data.responseText.size() >= 1 && data.responseText.size() <= 2000 &&
+             data.category is string && data.category.size() >= 1 && data.category.size() <= 60 &&
+             data.active is bool &&
+             data.hitCount is int && data.hitCount >= 0;
+    }
+
+    // --- Multi-Tenant Workspace Isolation ---
+    match /workspaces/{workspaceId} {
+      allow get: if isValidId(workspaceId) && isWorkspaceOwner(workspaceId);
+      allow list: if false;
+
+      allow create: if isValidId(workspaceId) &&
+                       isWorkspaceOwner(workspaceId) &&
+                       incoming().keys().hasAll([
+                         'ownerId', 'companyName', 'industry', 'currency', 'planTier',
+                         'whatsappStatus', 'welcomeEnabled', 'welcomeMessage',
+                         'aiEnabled', 'aiTone', 'aiLanguage', 'aiInstructions',
+                         'createdAt', 'updatedAt'
+                       ]) &&
+                       incoming().keys().hasOnly([
+                         'ownerId', 'companyName', 'industry', 'currency', 'planTier',
+                         'whatsappStatus', 'welcomeEnabled', 'welcomeMessage',
+                         'aiEnabled', 'aiTone', 'aiLanguage', 'aiInstructions',
+                         'email', 'phone', 'address', 'businessHours',
+                         'acceptedPaymentMethods', 'mobileMoneyNumber', 'seededDemoData',
+                         'createdAt', 'updatedAt'
+                       ]) &&
+                       isValidWorkspace(incoming()) &&
+                       isValidTimestamp(incoming().createdAt) &&
+                       isValidTimestamp(incoming().updatedAt);
+
+      allow update: if isValidId(workspaceId) &&
+                       isWorkspaceOwner(workspaceId) &&
+                       isValidWorkspace(incoming()) &&
+                       incoming().ownerId == existing().ownerId &&
+                       incoming().createdAt == existing().createdAt &&
+                       isValidTimestamp(incoming().updatedAt) &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'companyName', 'industry', 'currency', 'planTier',
+                         'whatsappStatus', 'welcomeEnabled', 'welcomeMessage',
+                         'aiEnabled', 'aiTone', 'aiLanguage', 'aiInstructions',
+                         'email', 'phone', 'address', 'businessHours',
+                         'acceptedPaymentMethods', 'mobileMoneyNumber', 'seededDemoData',
+                         'updatedAt'
+                       ]);
+
+      allow delete: if isValidId(workspaceId) && isWorkspaceOwner(workspaceId);
+
+      // Customers subcollection
+      match /customers/{customerId} {
+        allow list: if isWorkspaceOwner(workspaceId);
+        allow get, delete: if isValidId(customerId) && isWorkspaceOwner(workspaceId);
+
+        allow create: if isValidId(customerId) &&
+                         isWorkspaceOwner(workspaceId) &&
+                         incoming().keys().hasAll([
+                           'ownerId', 'name', 'phone', 'segment', 'tags',
+                           'totalOrders', 'totalSpent', 'createdAt', 'updatedAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'ownerId', 'name', 'phone', 'email', 'company', 'segment',
+                           'tags', 'notes', 'totalOrders', 'totalSpent', 'createdAt', 'updatedAt'
+                         ]) &&
+                         isValidCustomer(incoming()) &&
+                         isValidTimestamp(incoming().createdAt) &&
+                         isValidTimestamp(incoming().updatedAt);
+
+        allow update: if isValidId(customerId) &&
+                         isWorkspaceOwner(workspaceId) &&
+                         isValidCustomer(incoming()) &&
+                         incoming().ownerId == existing().ownerId &&
+                         incoming().createdAt == existing().createdAt &&
+                         isValidTimestamp(incoming().updatedAt) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'name', 'phone', 'email', 'company', 'segment',
+                           'tags', 'notes', 'totalOrders', 'totalSpent', 'updatedAt'
+                         ]);
+      }
+
+      // Products subcollection
+      match /products/{productId} {
+        allow list: if isWorkspaceOwner(workspaceId);
+        allow get, delete: if isValidId(productId) && isWorkspaceOwner(workspaceId);
+
+        allow create: if isValidId(productId) &&
+                         isWorkspaceOwner(workspaceId) &&
+                         incoming().keys().hasAll([
+                           'ownerId', 'name', 'description', 'category', 'price',
+                           'stock', 'active', 'imageKey', 'createdAt', 'updatedAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'ownerId', 'name', 'description', 'category', 'sku',
+                           'price', 'stock', 'active', 'imageKey', 'imageUri', 'localImagePath',
+                           'createdAt', 'updatedAt'
+                         ]) &&
+                         isValidProduct(incoming()) &&
+                         isValidTimestamp(incoming().createdAt) &&
+                         isValidTimestamp(incoming().updatedAt);
+
+        allow update: if isValidId(productId) &&
+                         isWorkspaceOwner(workspaceId) &&
+                         isValidProduct(incoming()) &&
+                         incoming().ownerId == existing().ownerId &&
+                         incoming().createdAt == existing().createdAt &&
+                         isValidTimestamp(incoming().updatedAt) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'name', 'description', 'category', 'sku', 'price',
+                           'stock', 'active', 'imageKey', 'imageUri', 'localImagePath', 'updatedAt'
+                         ]);
+      }
+
+      // Orders subcollection (with terminal status lock on cancelled orders)
+      match /orders/{orderId} {
+        allow list: if isWorkspaceOwner(workspaceId);
+        allow get, delete: if isValidId(orderId) && isWorkspaceOwner(workspaceId);
+
+        allow create: if isValidId(orderId) &&
+                         isWorkspaceOwner(workspaceId) &&
+                         incoming().keys().hasAll([
+                           'ownerId', 'orderNumber', 'customerId', 'customerName',
+                           'customerPhone', 'items', 'totalAmount', 'status',
+                           'createdAt', 'updatedAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'ownerId', 'orderNumber', 'customerId', 'customerName',
+                           'customerPhone', 'items', 'totalAmount', 'status',
+                           'paymentMethod', 'paymentStatus', 'paymentReference',
+                           'notes', 'channel', 'createdAt', 'updatedAt'
+                         ]) &&
+                         isValidOrder(incoming()) &&
+                         isValidTimestamp(incoming().createdAt) &&
+                         isValidTimestamp(incoming().updatedAt);
+
+        allow update: if isValidId(orderId) &&
+                         isWorkspaceOwner(workspaceId) &&
+                         isValidOrder(incoming()) &&
+                         existing().status != 'cancelled' &&
+                         incoming().ownerId == existing().ownerId &&
+                         incoming().createdAt == existing().createdAt &&
+                         isValidTimestamp(incoming().updatedAt) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'status', 'paymentMethod', 'paymentStatus', 'paymentReference',
+                           'notes', 'items', 'totalAmount', 'updatedAt'
+                         ]);
+      }
+
+      // Conversations subcollection
+      match /conversations/{conversationId} {
+        allow list: if isWorkspaceOwner(workspaceId);
+        allow get, delete: if isValidId(conversationId) && isWorkspaceOwner(workspaceId);
+
+        allow create: if isValidId(conversationId) &&
+                         isWorkspaceOwner(workspaceId) &&
+                         incoming().keys().hasAll([
+                           'ownerId', 'customerId', 'customerName', 'customerPhone',
+                           'status', 'unreadCount', 'lastMessage', 'lastMessageSender',
+                           'createdAt', 'updatedAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'ownerId', 'customerId', 'customerName', 'customerPhone',
+                           'status', 'unreadCount', 'lastMessage', 'lastMessageSender',
+                           'aiSuggestedReply', 'assignedRule', 'createdAt', 'updatedAt'
+                         ]) &&
+                         isValidConversation(incoming()) &&
+                         isValidTimestamp(incoming().createdAt) &&
+                         isValidTimestamp(incoming().updatedAt);
+
+        allow update: if isValidId(conversationId) &&
+                         isWorkspaceOwner(workspaceId) &&
+                         isValidConversation(incoming()) &&
+                         incoming().ownerId == existing().ownerId &&
+                         incoming().createdAt == existing().createdAt &&
+                         isValidTimestamp(incoming().updatedAt) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'status', 'unreadCount', 'lastMessage', 'lastMessageSender',
+                           'aiSuggestedReply', 'assignedRule', 'updatedAt'
+                         ]);
+
+        // Messages subcollection (append-only)
+        match /messages/{messageId} {
+          allow list: if isWorkspaceOwner(workspaceId);
+          allow get, delete: if isValidId(messageId) && isWorkspaceOwner(workspaceId);
+          allow update: if false;
+
+          allow create: if isValidId(messageId) &&
+                           isWorkspaceOwner(workspaceId) &&
+                           incoming().keys().hasAll([
+                             'ownerId', 'senderType', 'text', 'createdAt'
+                           ]) &&
+                           incoming().keys().hasOnly([
+                             'ownerId', 'senderType', 'text', 'ruleMatched', 'createdAt'
+                           ]) &&
+                           isValidMessage(incoming()) &&
+                           isValidTimestamp(incoming().createdAt);
+        }
+      }
+
+      // Automations subcollection
+      match /automations/{ruleId} {
+        allow list: if isWorkspaceOwner(workspaceId);
+        allow get, delete: if isValidId(ruleId) && isWorkspaceOwner(workspaceId);
+
+        allow create: if isValidId(ruleId) &&
+                         isWorkspaceOwner(workspaceId) &&
+                         incoming().keys().hasAll([
+                           'ownerId', 'name', 'triggerType', 'keywords', 'matchMode',
+                           'responseText', 'category', 'active', 'hitCount',
+                           'createdAt', 'updatedAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'ownerId', 'name', 'triggerType', 'keywords', 'matchMode',
+                           'responseText', 'category', 'active', 'hitCount',
+                           'createdAt', 'updatedAt'
+                         ]) &&
+                         isValidAutomationRule(incoming()) &&
+                         isValidTimestamp(incoming().createdAt) &&
+                         isValidTimestamp(incoming().updatedAt);
+
+        allow update: if isValidId(ruleId) &&
+                         isWorkspaceOwner(workspaceId) &&
+                         isValidAutomationRule(incoming()) &&
+                         incoming().ownerId == existing().ownerId &&
+                         incoming().createdAt == existing().createdAt &&
+                         isValidTimestamp(incoming().updatedAt) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'name', 'triggerType', 'keywords', 'matchMode',
+                           'responseText', 'category', 'active', 'hitCount', 'updatedAt'
+                         ]);
+      }
+    }
+  }
+}

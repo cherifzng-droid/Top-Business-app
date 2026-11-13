@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">WhatsPro</string>
+    <string name="tagline">WhatsApp Business Automation &amp; CRM</string>
+    <string name="sign_in_google">Continue with Google</string>
+    <string name="sign_out">Sign out</string>
+    <string name="whatsapp_not_connected">WhatsApp Cloud API: Not Connected (Phase 2)</string>
+</resources>

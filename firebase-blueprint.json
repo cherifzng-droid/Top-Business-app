@@ -1,0 +1,179 @@
+{
+  "entities": {
+    "WorkspaceProfile": {
+      "title": "WorkspaceProfile",
+      "description": "Private multi-tenant business workspace profile, automation defaults, AI assistant settings, and subscription plan.",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "description": "Firebase Auth UID of workspace owner." },
+        "companyName": { "type": "string", "description": "Business display name." },
+        "industry": { "type": "string", "description": "Business vertical (e.g., Restaurant & Cafe, Retail Shop)." },
+        "currency": { "type": "string", "enum": ["USD", "EUR", "GBP", "MAD", "AED", "CAD", "XOF", "GHS", "NGN"] },
+        "email": { "type": "string", "description": "Business support email." },
+        "phone": { "type": "string", "description": "Business contact phone." },
+        "address": { "type": "string", "description": "Business street or city address." },
+        "businessHours": { "type": "string", "description": "Operating hours summary." },
+        "planTier": { "type": "string", "enum": ["starter", "growth", "enterprise"] },
+        "whatsappStatus": { "type": "string", "enum": ["not_connected", "pending_phase2"] },
+        "welcomeEnabled": { "type": "boolean" },
+        "welcomeMessage": { "type": "string" },
+        "aiEnabled": { "type": "boolean" },
+        "aiTone": { "type": "string", "enum": ["friendly", "professional", "concise"] },
+        "aiLanguage": { "type": "string" },
+        "aiInstructions": { "type": "string" },
+        "acceptedPaymentMethods": { "type": "array", "description": "West African mobile money & COD methods." },
+        "mobileMoneyNumber": { "type": "string", "description": "Merchant Mobile Money collection phone." },
+        "seededDemoData": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp via FieldValue.serverTimestamp()." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp via FieldValue.serverTimestamp()." }
+      },
+      "required": ["ownerId", "companyName", "industry", "currency", "planTier", "whatsappStatus", "welcomeEnabled", "welcomeMessage", "aiEnabled", "aiTone", "aiLanguage", "aiInstructions", "createdAt", "updatedAt"]
+    },
+    "Customer": {
+      "title": "Customer",
+      "description": "CRM contact scoped to a private business workspace.",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string" },
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "company": { "type": "string" },
+        "segment": { "type": "string", "enum": ["lead", "regular", "vip", "wholesale"] },
+        "tags": { "type": "array", "description": "Bounded up to 10 tags." },
+        "notes": { "type": "string" },
+        "totalOrders": { "type": "integer" },
+        "totalSpent": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "name", "phone", "segment", "tags", "totalOrders", "totalSpent", "createdAt", "updatedAt"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "Catalog product belonging to a business workspace.",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "category": { "type": "string" },
+        "sku": { "type": "string" },
+        "price": { "type": "number" },
+        "stock": { "type": "integer" },
+        "active": { "type": "boolean" },
+        "imageKey": { "type": "string" },
+        "imageUri": { "type": "string" },
+        "localImagePath": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "name", "description", "category", "price", "stock", "active", "imageKey", "createdAt", "updatedAt"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Customer order with line items and fulfillment status.",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string" },
+        "orderNumber": { "type": "string" },
+        "customerId": { "type": "string" },
+        "customerName": { "type": "string" },
+        "customerPhone": { "type": "string" },
+        "items": { "type": "array", "description": "Bounded up to 20 line item maps." },
+        "totalAmount": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "confirmed", "preparing", "shipped", "delivered", "cancelled"] },
+        "paymentMethod": { "type": "string", "enum": ["wave", "orange_money", "mtn_momo", "moov_money", "mixx_by_yas", "cash_on_delivery"] },
+        "paymentStatus": { "type": "string", "enum": ["pending", "paid", "failed"] },
+        "paymentReference": { "type": "string" },
+        "notes": { "type": "string" },
+        "channel": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "orderNumber", "customerId", "customerName", "customerPhone", "items", "totalAmount", "status", "createdAt", "updatedAt"]
+    },
+    "Conversation": {
+      "title": "Conversation",
+      "description": "Customer inbox thread in sandbox/foundation mode.",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string" },
+        "customerId": { "type": "string" },
+        "customerName": { "type": "string" },
+        "customerPhone": { "type": "string" },
+        "status": { "type": "string", "enum": ["open", "automated", "resolved"] },
+        "unreadCount": { "type": "integer" },
+        "lastMessage": { "type": "string" },
+        "lastMessageSender": { "type": "string", "enum": ["customer", "agent", "automation", "ai"] },
+        "aiSuggestedReply": { "type": "string" },
+        "assignedRule": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "customerId", "customerName", "customerPhone", "status", "unreadCount", "lastMessage", "lastMessageSender", "createdAt", "updatedAt"]
+    },
+    "ChatMessage": {
+      "title": "ChatMessage",
+      "description": "Individual message inside a conversation thread.",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string" },
+        "senderType": { "type": "string", "enum": ["customer", "agent", "automation", "ai"] },
+        "text": { "type": "string" },
+        "ruleMatched": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "senderType", "text", "createdAt"]
+    },
+    "AutomationRule": {
+      "title": "AutomationRule",
+      "description": "Keyword-based reply or FAQ automation rule.",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string" },
+        "name": { "type": "string" },
+        "triggerType": { "type": "string", "enum": ["keyword", "faq"] },
+        "keywords": { "type": "array", "description": "Bounded 1..10 trigger phrases." },
+        "matchMode": { "type": "string", "enum": ["contains", "exact"] },
+        "responseText": { "type": "string" },
+        "category": { "type": "string" },
+        "active": { "type": "boolean" },
+        "hitCount": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "name", "triggerType", "keywords", "matchMode", "responseText", "category", "active", "hitCount", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/workspaces/{workspaceId}": {
+      "schema": { "$ref": "#/entities/WorkspaceProfile" },
+      "description": "Private workspace document keyed by owner UID."
+    },
+    "/workspaces/{workspaceId}/customers/{customerId}": {
+      "schema": { "$ref": "#/entities/Customer" },
+      "description": "Business customers isolated per workspace."
+    },
+    "/workspaces/{workspaceId}/products/{productId}": {
+      "schema": { "$ref": "#/entities/Product" },
+      "description": "Product catalog items isolated per workspace."
+    },
+    "/workspaces/{workspaceId}/orders/{orderId}": {
+      "schema": { "$ref": "#/entities/Order" },
+      "description": "Customer orders isolated per workspace."
+    },
+    "/workspaces/{workspaceId}/conversations/{conversationId}": {
+      "schema": { "$ref": "#/entities/Conversation" },
+      "description": "Customer inbox threads isolated per workspace."
+    },
+    "/workspaces/{workspaceId}/conversations/{conversationId}/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/ChatMessage" },
+      "description": "Messages inside an inbox thread."
+    },
+    "/workspaces/{workspaceId}/automations/{ruleId}": {
+      "schema": { "$ref": "#/entities/AutomationRule" },
+      "description": "Keyword and FAQ automation rules isolated per workspace."
+    }
+  }
+}
